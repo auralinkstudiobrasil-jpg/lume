@@ -5,7 +5,7 @@ interface LumiProps {
   silenceMode?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   pulse?: boolean;
-  children?: React.ReactNode; // Allows passing icons (like the water drop) inside Lumi
+  children?: React.ReactNode; 
 }
 
 const Lumi: React.FC<LumiProps> = ({ 
@@ -16,9 +16,7 @@ const Lumi: React.FC<LumiProps> = ({
   children
 }) => {
   
-  // Determine styles based on mood/state
   const getStyles = () => {
-    // If silence mode is active (and not explicitly happy/completed), look "asleep" or dim
     if (silenceMode && mood !== 'happy') {
       return {
         bg: 'bg-gradient-to-br from-slate-200 to-slate-300',
@@ -33,7 +31,7 @@ const Lumi: React.FC<LumiProps> = ({
       case 'happy': 
         return {
           bg: 'bg-gradient-to-br from-yellow-200 via-amber-300 to-orange-300',
-          shadow: 'shadow-[0_10px_30px_-10px_rgba(251,191,36,0.6)]',
+          shadow: 'shadow-[0_10px_30px_-5px_rgba(251,191,36,0.6)]',
           glow: 'bg-yellow-400 opacity-40 blur-xl',
           faceColor: 'fill-amber-900',
           eyeType: 'happy'
@@ -41,7 +39,7 @@ const Lumi: React.FC<LumiProps> = ({
       case 'sunny': 
         return {
           bg: 'bg-gradient-to-br from-yellow-100 to-orange-100',
-          shadow: 'shadow-yellow-100',
+          shadow: 'shadow-[0_10px_20px_-5px_rgba(253,224,71,0.4)]',
           glow: 'bg-yellow-200 opacity-30 blur-lg',
           faceColor: 'fill-amber-800',
           eyeType: 'open'
@@ -49,7 +47,7 @@ const Lumi: React.FC<LumiProps> = ({
       case 'cloudy': 
         return {
           bg: 'bg-gradient-to-br from-blue-50 to-indigo-100',
-          shadow: 'shadow-blue-50',
+          shadow: 'shadow-[0_10px_20px_-5px_rgba(199,210,254,0.5)]',
           glow: 'bg-blue-200 opacity-30 blur-lg',
           faceColor: 'fill-indigo-400',
           eyeType: 'open'
@@ -57,7 +55,7 @@ const Lumi: React.FC<LumiProps> = ({
       case 'rainy': 
         return {
           bg: 'bg-gradient-to-br from-indigo-200 to-blue-300',
-          shadow: 'shadow-indigo-200',
+          shadow: 'shadow-[0_10px_20px_-5px_rgba(165,180,252,0.5)]',
           glow: 'bg-indigo-300 opacity-30 blur-lg',
           faceColor: 'fill-indigo-700',
           eyeType: 'sad'
@@ -65,7 +63,7 @@ const Lumi: React.FC<LumiProps> = ({
       case 'stormy': 
         return {
           bg: 'bg-gradient-to-br from-slate-300 to-slate-400',
-          shadow: 'shadow-slate-300',
+          shadow: 'shadow-[0_10px_20px_-5px_rgba(148,163,184,0.5)]',
           glow: 'bg-slate-400 opacity-30 blur-lg',
           faceColor: 'fill-slate-600',
           eyeType: 'sad'
@@ -73,7 +71,7 @@ const Lumi: React.FC<LumiProps> = ({
       default: // Neutral
         return {
           bg: 'bg-gradient-to-br from-amber-50 to-orange-100',
-          shadow: 'shadow-amber-50',
+          shadow: 'shadow-[0_10px_20px_-5px_rgba(254,215,170,0.5)]',
           glow: 'bg-amber-200 opacity-30 blur-lg',
           faceColor: 'fill-amber-800/60',
           eyeType: 'open'
@@ -85,11 +83,11 @@ const Lumi: React.FC<LumiProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'sm': return 'w-14 h-14';
-      case 'md': return 'w-32 h-32';
-      case 'lg': return 'w-48 h-48';
-      case 'xl': return 'w-64 h-64';
-      default: return 'w-32 h-32';
+      case 'sm': return 'w-12 h-12 min-w-[3rem] min-h-[3rem]'; // Garantir min-width para não esmagar
+      case 'md': return 'w-28 h-28 min-w-[7rem] min-h-[7rem]';
+      case 'lg': return 'w-44 h-44 min-w-[11rem] min-h-[11rem]'; // Levemente reduzido para caber melhor em mobile
+      case 'xl': return 'w-60 h-60 min-w-[15rem] min-h-[15rem]';
+      default: return 'w-28 h-28';
     }
   };
 
@@ -98,78 +96,72 @@ const Lumi: React.FC<LumiProps> = ({
     : (mood === 'happy' ? 'animate-bounce-gentle' : (silenceMode ? '' : 'animate-float'));
 
   return (
-    <div className={`relative ${getSizeClasses()} flex items-center justify-center transition-all duration-700 select-none`}>
+    // Adicionado flex-shrink-0 e padding wrapper para evitar cortes no glow
+    <div className={`relative ${getSizeClasses()} flex-shrink-0 flex items-center justify-center transition-all duration-700 select-none p-4`}>
       
-      {/* Background Glow (Aura) */}
-      <div className={`absolute inset-[-20%] rounded-full transition-all duration-1000 ${style.glow} ${mood === 'happy' ? 'animate-pulse' : ''}`}></div>
+      {/* Background Glow (Aura) - Ajustado inset para não cortar */}
+      <div className={`absolute inset-0 rounded-full transition-all duration-1000 ${style.glow} ${mood === 'happy' ? 'animate-pulse' : ''}`}></div>
       
       {/* Main Body Orb */}
-      <div className={`absolute inset-0 rounded-full ${style.bg} ${style.shadow} ${animationClass} z-10 border border-white/20 flex items-center justify-center overflow-hidden transition-all duration-700`}>
+      <div className={`absolute inset-2 rounded-full ${style.bg} ${style.shadow} ${animationClass} z-10 border border-white/30 flex items-center justify-center overflow-hidden transition-all duration-700`}>
         
-        {/* Shine/Reflection effect on top */}
-        <div className="absolute top-2 left-1/4 w-1/3 h-1/3 bg-gradient-to-b from-white/60 to-transparent rounded-full opacity-60 blur-[2px]"></div>
+        {/* Shine/Reflection effect */}
+        <div className="absolute top-2 left-1/4 w-1/3 h-1/3 bg-gradient-to-b from-white/70 to-transparent rounded-full opacity-70 blur-[1px]"></div>
         
         {/* Face Container */}
-        <div className={`relative z-20 flex flex-col items-center justify-center transition-transform duration-500 ${children ? '-translate-y-2' : ''}`}>
+        <div className={`relative z-20 flex flex-col items-center justify-center transition-transform duration-500 w-full h-full ${children ? '-translate-y-2' : ''}`}>
             
             {/* SVG Face */}
             <svg 
-              width="100%" 
-              height="100%" 
               viewBox="0 0 100 100" 
               className={`w-2/3 h-2/3 transition-all duration-500 ${style.faceColor}`}
+              style={{ filter: 'drop-shadow(0px 2px 2px rgba(0,0,0,0.1))' }}
             >
               {/* Eyes */}
               {style.eyeType === 'happy' && (
                 <g className="animate-pulse">
-                  {/* Happy Eyes ^ ^ */}
-                  <path d="M 25 45 Q 35 35 45 45" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-                  <path d="M 55 45 Q 65 35 75 45" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+                  <path d="M 25 45 Q 35 35 45 45" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 55 45 Q 65 35 75 45" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
                 </g>
               )}
 
               {style.eyeType === 'open' && (
                  <g>
-                   {/* Normal Eyes • • */}
-                   <circle cx="35" cy="45" r="5" />
-                   <circle cx="65" cy="45" r="5" />
+                   <circle cx="35" cy="45" r="6" />
+                   <circle cx="65" cy="45" r="6" />
                  </g>
               )}
 
               {style.eyeType === 'sleep' && (
                  <g>
-                   {/* Sleep Eyes - - */}
-                   <path d="M 28 45 L 42 45" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-                   <path d="M 58 45 L 72 45" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                   <path d="M 28 48 L 42 48" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+                   <path d="M 58 48 L 72 48" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
                  </g>
               )}
 
               {style.eyeType === 'sad' && (
                  <g>
-                    {/* Sad Eyes / \ */}
-                   <circle cx="35" cy="45" r="4" />
-                   <circle cx="65" cy="45" r="4" />
-                   {/* Teardrop maybe? No, keep it simple */}
+                   <circle cx="35" cy="48" r="5" />
+                   <circle cx="65" cy="48" r="5" />
                  </g>
               )}
 
               {/* Mouth */}
               {style.eyeType === 'happy' ? (
-                 <path d="M 35 60 Q 50 75 65 60" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+                 <path d="M 35 60 Q 50 75 65 60" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
               ) : style.eyeType === 'sad' ? (
-                 <path d="M 35 65 Q 50 60 65 65" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                 <path d="M 35 68 Q 50 60 65 68" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
               ) : style.eyeType === 'sleep' ? (
-                 <circle cx="50" cy="65" r="2" />
+                 <circle cx="50" cy="65" r="3" />
               ) : (
-                 <path d="M 42 65 Q 50 68 58 65" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                 <path d="M 40 65 Q 50 68 60 65" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
               )}
             </svg>
         </div>
 
-        {/* Children content (Task Icon) - Positioned at the bottom/belly */}
         {children && (
-          <div className={`absolute bottom-2 z-30 transition-all duration-500 ${mood === 'happy' ? 'scale-110 translate-y-0 opacity-100' : 'scale-90 translate-y-1 opacity-70 grayscale'}`}>
-            <span className="text-lg filter drop-shadow-sm">{children}</span>
+          <div className={`absolute bottom-3 z-30 transition-all duration-500 ${mood === 'happy' ? 'scale-110 translate-y-0 opacity-100' : 'scale-90 translate-y-1 opacity-70 grayscale'}`}>
+            <span className="text-xl filter drop-shadow-md">{children}</span>
           </div>
         )}
 
