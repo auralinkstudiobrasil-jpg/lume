@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CommunityMessage } from '../types';
 import { sanitizeText, registerViolation, checkBanStatus } from '../services/moderationService';
 import { generateCommunitySupport } from '../services/geminiService';
-import { getCommunityMessages, postToCommunity } from '../services/communityService';
+import { getCommunityMessages, postToCommunity, subscribeToMessages } from '../services/communityService';
 import Lumi from './Lumi';
 
 const CommunityChat: React.FC = () => {
@@ -11,29 +11,46 @@ const CommunityChat: React.FC = () => {
   const [isBanned, setIsBanned] = useState(false);
   const [banMinutes, setBanMinutes] = useState(0);
   const [warning, setWarning] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load messages from service on mount
-    setMessages(getCommunityMessages());
+    // 1. Carregar mensagens iniciais
+    const loadMessages = async () => {
+      setIsLoading(true);
+      const data = await getCommunityMessages();
+      setMessages(data);
+      setIsLoading(false);
+    };
+    loadMessages();
 
-    // Check ban status
+    // 2. Conectar ao Realtime (Socket)
+    const subscription = subscribeToMessages((newMsg) => {
+      setMessages((prev) => [...prev, newMsg]);
+    });
+
+    // 3. Verificar Banimento Local
     const status = checkBanStatus();
     if (status.isBanned) {
       setIsBanned(true);
       setBanMinutes(status.minutesRemaining);
     }
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
+    // Verifica Banimento
     const status = checkBanStatus();
     if (status.isBanned) {
         setIsBanned(true);
@@ -41,6 +58,7 @@ const CommunityChat: React.FC = () => {
         return;
     }
 
+    // Moderação Automática de Texto
     const { sanitized, detected } = sanitizeText(inputText);
 
     if (detected) {
@@ -58,31 +76,23 @@ const CommunityChat: React.FC = () => {
     }
 
     const newMessage: CommunityMessage = {
-      id: Date.now().toString(),
-      author: 'Você',
+      id: 'temp-' + Date.now(), // ID temporário, o banco gera o real
+      author: 'Você', // Idealmente viria do Auth, mas mantendo 'Você' localmente para UX
       avatar: '👤',
       text: sanitized,
       timestamp: Date.now()
     };
 
-    // Use service
-    postToCommunity(newMessage);
-    setMessages(getCommunityMessages());
+    // Envia para o Banco (Fire and Forget)
+    // O Realtime vai trazer a mensagem de volta para a tela, mas podemos adicionar otimisticamente
+    // setMessages(prev => [...prev, newMessage]); 
+    // ^ Comentei a linha acima para evitar duplicidade visual rápida (o realtime é rápido)
+    
+    await postToCommunity(newMessage);
     setInputText('');
 
-    // Simulate AI Reply
-    setTimeout(async () => {
-        const supportText = await generateCommunitySupport(sanitized);
-        const reply: CommunityMessage = {
-            id: (Date.now() + 1).toString(),
-            author: 'Anônimo',
-            avatar: ['🦊', '🐱', '🐼', '🐨', '🐸'][Math.floor(Math.random() * 5)],
-            text: supportText,
-            timestamp: Date.now()
-        };
-        postToCommunity(reply);
-        setMessages(getCommunityMessages());
-    }, 2500);
+    // A resposta da IA (Lumi Support) agora é opcional ou deve ser feita via Edge Function no Backend
+    // Para manter simples, vamos remover a IA automática simulada no frontend para não spammar o banco global
   };
 
   if (isBanned) {
@@ -102,7 +112,7 @@ const CommunityChat: React.FC = () => {
     <div className="flex flex-col h-full max-h-[75vh]">
       <div className="bg-indigo-50 border-b border-indigo-100 p-3 text-center">
          <p className="text-xs text-indigo-800 font-medium flex items-center justify-center gap-2">
-           <span>🛡️</span> Comunidade Segura
+           <span>🛡️</span> Comunidade Global (Online)
          </p>
       </div>
 
@@ -110,6 +120,19 @@ const CommunityChat: React.FC = () => {
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50"
       >
+        {isLoading && (
+            <div className="flex justify-center p-4">
+                <Lumi size="sm" mood="neutral" pulse={true} />
+            </div>
+        )}
+
+        {!isLoading && messages.length === 0 && (
+            <div className="text-center text-slate-400 mt-10">
+                <p>O chat está silencioso...</p>
+                <p className="text-xs">Seja a primeira faísca.</p>
+            </div>
+        )}
+
         {messages.map((msg) => (
           <div 
             key={msg.id} 
@@ -158,7 +181,7 @@ const CommunityChat: React.FC = () => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Desabafe ou apoie..."
+            placeholder="Escreva para o mundo..."
             className="flex-1 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700 text-sm"
           />
           <button

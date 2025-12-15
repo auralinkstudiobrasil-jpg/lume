@@ -1,3 +1,4 @@
+
 export type MoodType = 'sunny' | 'cloudy' | 'rainy' | 'stormy' | 'neutral' | 'happy';
 
 export type UserMode = 'base' | 'sensory' | 'focus' | 'gentle';
@@ -28,6 +29,7 @@ export interface CommunityMessage {
   audio?: string; // Base64
   isModerator?: boolean;
   timestamp: number;
+  user_id?: string; // Added for Supabase linking
 }
 
 export interface Tab {
@@ -49,6 +51,7 @@ export interface DiaryEntry {
   type: 'draw' | 'text' | 'color' | 'shape' | 'audio' | 'guided';
   content: string; // Text content, Base64 image, or JSON string for shapes/colors
   preview?: string; // Small preview for list
+  user_id?: string; // Added for Supabase linking
 }
 
 export interface ShapeItem {
@@ -59,4 +62,12 @@ export interface ShapeItem {
   scale: number;
   rotation: number;
   color: string;
+}
+
+// --- Supabase Database Definitions (Optional for strict typing) ---
+export interface DatabaseProfile {
+  id: string;
+  display_name: string;
+  user_mode: UserMode;
+  avatar_emoji: string;
 }
