@@ -1,11 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Tenta ler variáveis de ambiente de múltiplas formas
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+// LEITURA ROBUSTA DAS CHAVES (Prioriza VITE_... para Vercel)
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 
+                    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 
+                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("⚠️ SUPABASE KEYS MISSING: Verifique se NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY estão definidos no arquivo .env ou no painel da Vercel.");
+  console.warn("⚠️ ERRO CRÍTICO: Chaves do Supabase ausentes. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY na Vercel.");
 }
 
 // Cria o cliente APENAS se as chaves existirem.
