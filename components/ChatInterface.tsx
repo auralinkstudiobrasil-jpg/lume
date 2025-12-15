@@ -28,17 +28,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
   // --- CLEANUP ON UNMOUNT ---
   useEffect(() => {
     return () => {
-      // Automatic deletion logic:
-      // Revoke any object URLs to ensure data is cleared from browser memory
       messages.forEach(msg => {
-        if (msg.image && msg.image.startsWith('blob:')) {
-            URL.revokeObjectURL(msg.image);
-        }
-        if (msg.audio && msg.audio.startsWith('blob:')) {
-            URL.revokeObjectURL(msg.audio);
-        }
+        if (msg.image && msg.image.startsWith('blob:')) URL.revokeObjectURL(msg.image);
+        if (msg.audio && msg.audio.startsWith('blob:')) URL.revokeObjectURL(msg.audio);
       });
-      // Clear messages state happens naturally on unmount
     };
   }, [messages]);
 
@@ -46,13 +39,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, selectedImage, isRecording]);
+  }, [messages, selectedImage, isRecording, isLoading]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit
-        alert("A imagem deve ter no máximo 1MB.");
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert("A imagem deve ter no máximo 2MB.");
         return;
       }
       const reader = new FileReader();
@@ -74,7 +67,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/webm' };
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -85,29 +83,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         sendAudioMessage(audioBlob);
         
-        // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error("Error accessing microphone:", err);
-      if (err instanceof DOMException && err.name === 'NotAllowedError') {
-          alert("Acesso ao microfone bloqueado. Por favor, permita o uso do microfone nas configurações do navegador.");
-      } else if (err instanceof DOMException && err.name === 'NotFoundError') {
-           alert("Microfone não encontrado. Verifique se o dispositivo está conectado.");
-      } else {
-           alert("Não consegui acessar o áudio. Tente usar texto.");
-      }
+      console.error("Microphone Error:", err);
+      alert("Não consegui acessar o microfone. Verifique as permissões do navegador.");
+      setIsRecording(false);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -123,33 +116,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
   };
 
   const sendAudioMessage = async (audioBlob: Blob) => {
-     const audioBase64 = await blobToBase64(audioBlob);
-     
-     // Create a temporary URL for preview in chat
-     const audioUrl = URL.createObjectURL(audioBlob);
-
-     const userMsg: ChatMessage = {
-        id: Date.now().toString(),
-        sender: 'user',
-        text: 'Mensagem de voz',
-        audio: audioUrl // Used for display
-     };
-
-     setMessages(prev => [...prev, userMsg]);
-     setIsLoading(true);
-
      try {
-        const fullResponse = await generateLumiResponse(
-            "", // No text needed if audio is present
-            contextMood,
-            undefined,
-            selectedImage || undefined,
-            audioBase64, // Send the actual base64 data to API
-            userName
-        );
-        processLumiResponse(fullResponse);
+       const audioBase64 = await blobToBase64(audioBlob);
+       const audioUrl = URL.createObjectURL(audioBlob);
+
+       const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          sender: 'user',
+          text: 'Mensagem de voz',
+          audio: audioUrl
+       };
+
+       setMessages(prev => [...prev, userMsg]);
+       setIsLoading(true);
+
+       // Send to API
+       const fullResponse = await generateLumiResponse(
+          "", 
+          contextMood,
+          undefined,
+          selectedImage || undefined,
+          audioBase64,
+          userName
+       );
+       
+       if (selectedImage) handleRemoveImage();
+       
+       processLumiResponse(fullResponse);
      } catch (e) {
-         console.error(e);
+         console.error("Audio send error:", e);
          setIsLoading(false);
      }
   };
@@ -157,33 +152,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
   const handleSendMessage = async () => {
     if ((!inputText.trim() && !selectedImage) || isLoading) return;
 
+    const currentText = inputText;
+    const currentImage = selectedImage;
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: 'user',
-      text: inputText,
-      image: selectedImage || undefined
+      text: currentText,
+      image: currentImage || undefined
     };
 
     setMessages(prev => [...prev, userMsg]);
-    
-    // Backup data for API call
-    const textToSend = inputText;
-    const imageToSend = selectedImage;
-
-    // Reset UI
     setInputText('');
-    setSelectedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    
+    handleRemoveImage();
     setIsLoading(true);
 
     try {
       const fullResponse = await generateLumiResponse(
-        textToSend, 
+        currentText, 
         contextMood,
         undefined, 
-        imageToSend || undefined,
-        undefined, // No audio in text send
+        currentImage || undefined,
+        undefined,
         userName
       );
       processLumiResponse(fullResponse);
@@ -219,17 +209,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[75vh]">
-      <div className="flex-none p-4 flex justify-center border-b border-slate-100 bg-white/50 backdrop-blur-sm rounded-t-3xl relative">
+    <div className="flex flex-col h-full w-full">
+      {/* Header Fixo */}
+      <div className="flex-none p-3 flex justify-center border-b border-slate-100 bg-white/50 backdrop-blur-sm rounded-t-3xl relative z-10">
          <div className="absolute left-4 top-4 text-[10px] text-slate-400 max-w-[100px] leading-tight">
-            *Áudios e fotos são excluídos ao sair.
+            *Dados apagados ao sair.
          </div>
         <Lumi size="sm" mood={contextMood as any || 'neutral'} silenceMode={silenceMode} />
       </div>
 
+      {/* Área de rolagem elástica */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide"
       >
         {messages.map((msg) => (
           <div 
@@ -244,7 +236,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
               }`}
             >
               {msg.image && (
-                <div className="mb-3 rounded-xl overflow-hidden">
+                <div className="mb-3 rounded-xl overflow-hidden bg-black/10">
                   <img src={msg.image} alt="Upload" className="w-full h-auto object-cover max-h-60" />
                 </div>
               )}
@@ -255,16 +247,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
                  </div>
               )}
 
-              {msg.text && <p>{msg.text}</p>}
+              {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
             </div>
             
-            {/* Safety Card logic */}
             {msg.isSafetyMessage && (
-              <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-xl max-w-[85%] animate-fade-in">
-                 <p className="text-sm text-amber-800 mb-3 font-medium">Se quiser falar com alguém agora:</p>
-                 <div className="flex flex-wrap gap-2">
-                    <a href="tel:188" className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 transition">Ligar 188 (CVV)</a>
-                 </div>
+              <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-xl max-w-[85%]">
+                 <p className="text-sm text-amber-800 mb-3 font-medium">Se quiser falar com alguém:</p>
+                 <a href="tel:188" className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold inline-block">Ligar 188 (CVV)</a>
               </div>
             )}
           </div>
@@ -280,22 +269,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
              </div>
            </div>
         )}
+        <div className="h-2"></div> {/* Spacer for very bottom */}
       </div>
 
-      <div className="flex-none p-4 bg-white border-t border-slate-100 rounded-b-3xl relative">
-        {/* Image Preview Area */}
+      {/* Input Area fixa na parte inferior */}
+      <div className="flex-none p-4 bg-white border-t border-slate-100 rounded-b-3xl relative z-20">
+        
         {selectedImage && (
-          <div className="absolute bottom-full left-0 w-full p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 flex items-center gap-4 animate-slide-up">
-            <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
+          <div className="absolute bottom-full left-0 w-full p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center gap-4 shadow-sm rounded-t-2xl z-20">
+            <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
               <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-              <button 
-                onClick={handleRemoveImage}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <span className="text-white font-bold text-xs">✕</span>
-              </button>
             </div>
-            <p className="text-xs text-slate-500">Foto para análise (max 1MB)</p>
+            <div>
+                 <p className="text-xs font-bold text-indigo-600">Imagem selecionada</p>
+            </div>
+            <button onClick={handleRemoveImage} className="ml-auto text-slate-400 p-2">✕</button>
           </div>
         )}
 
@@ -310,18 +298,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
           
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-3 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-            title="Enviar foto para análise"
-            disabled={isRecording}
+            className="p-3 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all flex-shrink-0"
+            disabled={isRecording || isLoading}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
             </svg>
           </button>
 
-          {/* Input Area or Recording Indicator */}
           {isRecording ? (
-             <div className="flex-1 flex items-center justify-center bg-red-50 rounded-xl px-4 py-3 border border-red-100 animate-pulse">
+             <div className="flex-1 flex items-center justify-center bg-red-50 rounded-xl px-4 py-3 border border-red-100 animate-pulse cursor-pointer" onClick={stopRecording}>
                 <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
                 <span className="text-red-500 font-bold text-sm">Gravando...</span>
              </div>
@@ -332,17 +318,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder={silenceMode ? "Escreva..." : "Fale com Lumi..."}
-                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700"
+                className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700 disabled:bg-slate-50 text-base"
                 disabled={isLoading}
             />
           )}
 
-          {/* Mic / Send Toggle */}
           {inputText.trim() || selectedImage ? (
             <button
                 onClick={handleSendMessage}
                 disabled={isLoading}
-                className="bg-indigo-500 text-white p-3 rounded-xl disabled:opacity-50 hover:bg-indigo-600 transition-colors"
+                className="bg-indigo-500 text-white p-3 rounded-xl disabled:opacity-50 hover:bg-indigo-600 transition-colors shadow-sm flex-shrink-0"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
@@ -354,8 +339,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ silenceMode, contextMood,
                 onMouseUp={stopRecording}
                 onTouchStart={startRecording}
                 onTouchEnd={stopRecording}
-                className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
-                title="Segure para gravar áudio"
+                disabled={isLoading}
+                className={`p-3 rounded-xl transition-all flex-shrink-0 ${
+                    isRecording 
+                        ? 'bg-red-500 text-white scale-110 shadow-lg' 
+                        : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                }`}
              >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />

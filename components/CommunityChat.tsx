@@ -16,23 +16,18 @@ const CommunityChat: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 1. Carregar mensagens
     const loadMessages = async () => {
       setIsLoading(true);
-      // getCommunityMessages agora é assíncrono por causa do Supabase
       const data = await getCommunityMessages(); 
-      // Se data vier vazia e for a primeira vez offline, pode ser um array vazio ou as iniciais
       setMessages(data);
       setIsLoading(false);
     };
     loadMessages();
 
-    // 2. Conectar ao Realtime (Socket) se houver Supabase
     const subscription = subscribeToMessages((newMsg) => {
       setMessages((prev) => [...prev, newMsg]);
     });
 
-    // 3. Verificar Banimento Local
     const status = checkBanStatus();
     if (status.isBanned) {
       setIsBanned(true);
@@ -53,7 +48,6 @@ const CommunityChat: React.FC = () => {
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    // Verifica Banimento
     const status = checkBanStatus();
     if (status.isBanned) {
         setIsBanned(true);
@@ -61,7 +55,6 @@ const CommunityChat: React.FC = () => {
         return;
     }
 
-    // Moderação Automática de Texto
     const { sanitized, detected } = sanitizeText(inputText);
 
     if (detected) {
@@ -86,8 +79,6 @@ const CommunityChat: React.FC = () => {
       timestamp: Date.now()
     };
     
-    // Se estiver offline/sem supabase, atualizamos a lista manualmente.
-    // Se estiver online, o Realtime trará a mensagem de volta, mas para UX rápida adicionamos:
     if (!supabase) {
         setMessages(prev => [...prev, newMessage]);
     }
@@ -95,7 +86,6 @@ const CommunityChat: React.FC = () => {
     await postToCommunity(newMessage);
     setInputText('');
 
-    // Se estivermos offline (sem supabase), simular resposta da IA localmente
     if (!supabase) {
         setTimeout(async () => {
             const supportText = await generateCommunitySupport(sanitized);
@@ -126,8 +116,8 @@ const CommunityChat: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full max-h-[75vh]">
-      <div className="bg-indigo-50 border-b border-indigo-100 p-3 text-center">
+    <div className="flex flex-col h-full w-full">
+      <div className="bg-indigo-50 border-b border-indigo-100 p-3 text-center flex-none">
          <p className="text-xs text-indigo-800 font-medium flex items-center justify-center gap-2">
            <span>{supabase ? '🟢' : '🟠'}</span> {supabase ? 'Comunidade Online' : 'Modo Offline (Local)'}
          </p>
@@ -135,7 +125,7 @@ const CommunityChat: React.FC = () => {
 
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50"
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 scrollbar-hide"
       >
         {isLoading && (
             <div className="flex justify-center p-4">
@@ -162,7 +152,7 @@ const CommunityChat: React.FC = () => {
             <div className={`max-w-[80%] flex flex-col ${msg.author === 'Você' ? 'items-end' : 'items-start'}`}>
                <span className="text-[10px] text-slate-400 mb-1 px-1">{msg.author}</span>
                <div 
-                  className={`p-3 rounded-2xl text-sm shadow-sm overflow-hidden ${
+                  className={`p-3 rounded-2xl text-sm shadow-sm overflow-hidden break-words ${
                     msg.isModerator 
                       ? 'bg-indigo-100 text-indigo-900 border border-indigo-200' 
                       : msg.author === 'Você'
@@ -183,10 +173,11 @@ const CommunityChat: React.FC = () => {
             </div>
           </div>
         ))}
+        <div className="h-2"></div>
       </div>
 
       {warning && (
-        <div className="px-4 py-2 bg-red-100 border-t border-red-200">
+        <div className="px-4 py-2 bg-red-100 border-t border-red-200 flex-none">
            <p className="text-xs text-red-700 font-bold text-center">{warning}</p>
         </div>
       )}
@@ -199,12 +190,12 @@ const CommunityChat: React.FC = () => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder={supabase ? "Escreva para o mundo..." : "Escreva (local)..."}
-            className="flex-1 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700 text-sm"
+            className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700 text-sm"
           />
           <button
             onClick={handleSend}
             disabled={!inputText.trim()}
-            className="bg-indigo-500 text-white p-3 rounded-xl disabled:opacity-50 hover:bg-indigo-600 transition-colors"
+            className="bg-indigo-500 text-white p-3 rounded-xl disabled:opacity-50 hover:bg-indigo-600 transition-colors flex-shrink-0"
           >
             ➤
           </button>

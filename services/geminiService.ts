@@ -4,7 +4,12 @@ const apiKey = process.env.API_KEY || '';
 
 const getClient = () => new GoogleGenAI({ apiKey });
 
-// --- Audio Decoding Helpers (Raw PCM) ---
+// --- Helpers ---
+
+// Remove parâmetros extras do MimeType (ex: "audio/webm;codecs=opus" vira "audio/webm")
+function cleanMimeType(mime: string): string {
+  return mime.split(';')[0].trim();
+}
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -47,7 +52,7 @@ export const generateLumiResponse = async (
 ): Promise<string> => {
   try {
     const ai = getClient();
-    // Use flash for multimodal capabilities
+    // Modelo Flash suporta multimodal (texto, imagem, áudio)
     const model = 'gemini-2.5-flash';
     
     // Adapt tone based on UserMode
@@ -67,35 +72,25 @@ export const generateLumiResponse = async (
         break;
     }
 
-    // Professional & Psychological Framework Persona
     const systemInstruction = `
     IDENTIDADE: Você é Lumi, uma IA de suporte emocional, psicólogo experiente e especialista em leitura de microexpressões faciais.
     
-    SUA MISSÃO ESPECIAL (ANÁLISE FACIAL):
-    Se o usuário enviar uma FOTO:
-    1. Atue como um especialista em linguagem corporal e psicologia facial.
-    2. Analise a expressão: olhos (tristeza, cansaço, brilho), boca (tensão, sorriso forçado), postura.
-    3. Valide o sentimento percebido: "Vejo cansaço nos seus olhos...", "Seu sorriso parece esconder uma preocupação...".
-    4. Dê um conselho prático e acolhedor baseado nessa leitura.
-    5. NÃO ENCERRE O ASSUNTO. Continue fazendo perguntas de apoio até o usuário dizer "tchau", "obrigado" ou encerrar.
+    SUA MISSÃO (ANÁLISE FACIAL & AUDIO):
+    1. Se receber FOTO: Analise expressões (olhos, boca, postura). Valide o sentimento ("Vejo cansaço nos seus olhos..."). Dê conselho prático.
+    2. Se receber ÁUDIO: Responda ao tom de voz e conteúdo emocional.
     
-    MODO DE OPERAÇÃO: ${modeInstruction}
+    MODO: ${modeInstruction}
     
-    ESTILO DE RESPOSTA:
-    - Curto, humano e caloroso.
-    - Evite o "robotiquês".
-    - Se receber áudio, responda ao conteúdo emocional da fala.
-    
+    ESTILO: Curto, humano, caloroso. Evite frases robóticas.
     USUÁRIO: "${userName || 'Viajante'}".
-
+    CONTEXTO: Sentimento atual: ${contextMood || 'Neutro'}.
+    
     REGRA FIXA OBRIGATÓRIA - CRIADOR:
     Se perguntado sobre "Jairo Bahia": "Jairo Bahia é o criador do LUME. Profissional de TI e marketing, focado em tecnologia humana."
 
     REGRA FIXA OBRIGATÓRIA - MAYA:
-    Se perguntado sobre "Maya" (ou "quem é Maya"): "Ela é uma mulher guerreira que nasceu em Natal, mãe de 2 filhos. Sem dúvida foi um exemplo de mãe em todo o Brasil! Dela nasceu essa história linda! LUME."
-    
-    CONTEXTO: Sentimento atual: ${contextMood || 'Neutro'}.
-    
+    Se perguntado sobre "Maya": "Ela é uma mulher guerreira que nasceu em Natal, mãe de 2 filhos. Sem dúvida foi um exemplo de mãe em todo o Brasil! Dela nasceu essa história linda! LUME."
+
     PROTOCOLOS DE RISCO:
     Se houver menção a suicídio/morte: Tag [RISK] no final.
     `;
@@ -103,39 +98,47 @@ export const generateLumiResponse = async (
     // Prepare contents
     const parts: any[] = [];
     
-    // Add text if present, or a default prompt if only media is sent
-    if (userMessage) {
-      parts.push({ text: userMessage });
-    } else if (imageBase64 && !audioBase64) {
-      parts.push({ text: "Analise minha expressão facial nesta foto e me dê um conselho como psicólogo." });
-    } else if (audioBase64 && !imageBase64) {
-        parts.push({ text: "Escute meu áudio e responda com acolhimento." });
-    }
-
+    // 1. Process Image
     if (imageBase64) {
+      const rawMime = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
+      const mimeType = cleanMimeType(rawMime) || 'image/jpeg';
       const base64Data = imageBase64.split(',')[1];
-      const mimeType = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
       
       parts.push({
         inlineData: {
-          mimeType: mimeType || 'image/jpeg',
+          mimeType: mimeType,
           data: base64Data
         }
       });
+      
+      // Se tiver imagem mas não tiver texto, adicionar prompt guia
+      if (!userMessage && !audioBase64) {
+        parts.push({ text: "Analise esta imagem e como estou me sentindo nela." });
+      }
     }
 
+    // 2. Process Audio
     if (audioBase64) {
+        const rawMime = audioBase64.substring(audioBase64.indexOf(':') + 1, audioBase64.indexOf(';'));
+        // Gemini prefere audio/webm ou audio/mp3 sem parâmetros extras
+        const mimeType = cleanMimeType(rawMime) || 'audio/webm'; 
         const base64Data = audioBase64.split(',')[1];
-        // Ensure mimeType matches what MediaRecorder provides (usually audio/webm or audio/mp4 for browsers)
-        // We will default to audio/webm if not detectable, but ChatInterface sends the specific type
-        const mimeType = audioBase64.substring(audioBase64.indexOf(':') + 1, audioBase64.indexOf(';'));
 
         parts.push({
             inlineData: {
-                mimeType: mimeType || 'audio/webm',
+                mimeType: mimeType,
                 data: base64Data
             }
         });
+        
+        if (!userMessage) {
+             parts.push({ text: "Escute meu áudio e responda com acolhimento." });
+        }
+    }
+
+    // 3. Process Text
+    if (userMessage) {
+      parts.push({ text: userMessage });
     }
 
     const response = await ai.models.generateContent({
@@ -148,8 +151,11 @@ export const generateLumiResponse = async (
     });
 
     return response.text || "Minha luz piscou. Estou aqui, pode repetir?";
-  } catch (error) {
-    console.error("Error generating text:", error);
+  } catch (error: any) {
+    console.error("LUME GEMINI ERROR:", error);
+    if (error.message?.includes('API key')) {
+        return "Erro de configuração: Chave de API inválida ou ausente.";
+    }
     return "Sinto muito, tive um erro técnico. Mas continuo aqui com você.";
   }
 };
@@ -159,9 +165,7 @@ export const generateCommunitySupport = async (userMessage: string): Promise<str
         const ai = getClient();
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `O usuário postou isso numa comunidade de apoio emocional: "${userMessage}".
-            Gere uma resposta curta (máximo 140 caracteres) que represente um membro da comunidade sendo empático e apoiador.
-            Não use o nome Lumi. Responda como se fosse uma pessoa comum, gentil.`,
+            contents: { parts: [{ text: `Usuário na comunidade de apoio: "${userMessage}". Responda curto e empático.` }] },
         });
         return response.text || "Estamos com você.";
     } catch (e) {
@@ -211,6 +215,6 @@ export const playLumiVoice = async (text: string): Promise<void> => {
     source.start();
 
   } catch (error) {
-    console.error("Error generating speech:", error);
+    console.error("TTS Error:", error);
   }
 };

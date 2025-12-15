@@ -7,39 +7,31 @@ interface VideoBackgroundProps {
 }
 
 const VideoBackground: React.FC<VideoBackgroundProps> = ({ mode, children }) => {
-  const [isPlaying, setIsPlaying] = useState(mode !== 'sensory'); // Default paused for sensory/autism mode
+  const [isPlaying, setIsPlaying] = useState(mode !== 'sensory'); 
 
-  // CSS Gradients simulating slow video atmospheres
-  // Ideally, these would be <video> tags with source URLs, but for this demo, we use animated CSS.
   const getBackgroundClass = () => {
     switch (mode) {
-      case 'sensory': // Autism: Low contrast, predictable, very slow or static
-        return 'bg-gradient-to-br from-slate-100 to-slate-200';
-      case 'focus': // ADHD: Clean, minimal distractions
-        return 'bg-gradient-to-br from-indigo-50 to-white';
-      case 'gentle': // Depression: Soft, warm, nurturing
-        return 'bg-gradient-to-br from-orange-50 via-rose-50 to-slate-50';
-      default: // Base: Balanced nature tones
-        return 'bg-gradient-to-br from-sky-50 via-emerald-50 to-teal-50';
+      case 'sensory': return 'bg-gradient-to-br from-slate-100 to-slate-200';
+      case 'focus': return 'bg-gradient-to-br from-indigo-50 to-white';
+      case 'gentle': return 'bg-gradient-to-br from-orange-50 via-rose-50 to-slate-50';
+      default: return 'bg-gradient-to-br from-sky-50 via-emerald-50 to-teal-50';
     }
   };
 
   const getOverlayAnimation = () => {
     if (!isPlaying) return '';
-    
-    // Simulate slow movement (clouds/water)
     switch (mode) {
-      case 'sensory': return ''; // Static
-      case 'focus': return 'animate-pulse-slow'; // Very subtle
+      case 'sensory': return ''; 
+      case 'focus': return 'animate-pulse-slow';
       case 'gentle': return 'animate-flow-slow'; 
       default: return 'animate-flow';
     }
   };
 
   return (
-    <div className={`relative w-full min-h-screen overflow-hidden transition-colors duration-1000 ${getBackgroundClass()}`}>
+    <div className={`relative w-full h-full overflow-hidden transition-colors duration-1000 ${getBackgroundClass()}`}>
       
-      {/* Animated Overlay Layer (Simulating Video) */}
+      {/* Animated Overlay */}
       <div 
         className={`absolute inset-0 opacity-40 pointer-events-none mix-blend-multiply ${getOverlayAnimation()}`}
         style={{
@@ -48,23 +40,23 @@ const VideoBackground: React.FC<VideoBackgroundProps> = ({ mode, children }) => 
         }}
       ></div>
 
-      {/* Floating Orbs (Simulating light particles) */}
+      {/* Floating Orbs */}
       {isPlaying && mode !== 'sensory' && (
         <>
-           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-white/30 rounded-full blur-3xl animate-float opacity-50"></div>
-           <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-indigo-100/30 rounded-full blur-3xl animate-float opacity-50" style={{ animationDelay: '2s' }}></div>
+           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-white/30 rounded-full blur-3xl animate-float opacity-50 pointer-events-none"></div>
+           <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-indigo-100/30 rounded-full blur-3xl animate-float opacity-50 pointer-events-none" style={{ animationDelay: '2s' }}></div>
         </>
       )}
 
-      {/* Content Layer */}
-      <div className="relative z-10 h-full flex flex-col">
+      {/* Content Layer - Preenche altura total */}
+      <div className="relative z-10 h-full w-full flex flex-col">
         {children}
       </div>
 
-      {/* Accessibility Control: Play/Pause Motion */}
+      {/* Accessibility Control */}
       <button 
         onClick={() => setIsPlaying(!isPlaying)}
-        className="fixed bottom-4 left-4 z-50 p-2 rounded-full bg-white/20 hover:bg-white/40 backdrop-blur-md text-slate-500 hover:text-slate-700 transition-all"
+        className="fixed bottom-20 left-4 z-40 p-2 rounded-full bg-white/30 backdrop-blur-md text-slate-500 hover:text-slate-700 transition-all shadow-sm"
         title={isPlaying ? "Pausar movimento" : "Ativar movimento"}
       >
         {isPlaying ? (
@@ -74,7 +66,6 @@ const VideoBackground: React.FC<VideoBackgroundProps> = ({ mode, children }) => 
         )}
       </button>
 
-      {/* Global CSS for custom background animations */}
       <style>{`
         @keyframes flow {
           0% { background-position: 0% 50%; }

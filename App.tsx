@@ -17,8 +17,6 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState('');
   const [userMode, setUserMode] = useState<UserMode>('base');
 
-  // --- Navigation Logic ---
-  
   const handleNameSubmit = () => {
     if (userName.trim()) {
       setView('mode_select');
@@ -109,7 +107,7 @@ const App: React.FC = () => {
   );
 
   const renderModeSelect = () => (
-    <div className="flex flex-col h-full animate-fade-in p-6 pt-12 overflow-y-auto">
+    <div className="flex flex-col h-full animate-fade-in p-6 pt-12 overflow-y-auto scrollbar-hide">
       <h1 className="text-2xl font-bold text-slate-700 mb-2 text-center">
         O que você busca hoje?
       </h1>
@@ -146,7 +144,7 @@ const App: React.FC = () => {
   );
 
   const renderLanding = () => (
-    <div className="flex flex-col items-center justify-center h-full animate-fade-in p-6">
+    <div className="flex flex-col items-center justify-center h-full animate-fade-in p-6 overflow-y-auto scrollbar-hide">
       <div className="mb-6 scale-110">
         <Lumi mood="neutral" silenceMode={silenceMode} size="lg" />
       </div>
@@ -157,13 +155,11 @@ const App: React.FC = () => {
         Eu tô aqui com você.
       </p>
       
-      <div className="grid grid-cols-1 w-full max-w-xs gap-4">
-        {/* Highlighted Chat Button */}
+      <div className="grid grid-cols-1 w-full max-w-xs gap-4 pb-10">
         <button onClick={quickActionChat} className="bg-indigo-500 hover:bg-indigo-600 text-white p-5 rounded-2xl text-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3">
           <span className="text-2xl">💬</span> Conversar com Lumi
         </button>
         
-        {/* Community Button */}
         <button onClick={quickActionCommunity} className="bg-white/90 border-2 border-emerald-100 hover:border-emerald-300 text-slate-700 p-4 rounded-2xl text-lg font-medium shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-3">
           <span className="text-2xl">🌿</span> Comunidade
         </button>
@@ -215,13 +211,16 @@ const App: React.FC = () => {
 
   return (
     <VideoBackground mode={userMode}>
-      <div className={`min-h-screen w-full flex flex-col overflow-hidden`}>
+      {/* 
+         MUDANÇA PRINCIPAL: Usar h-[100dvh] para garantir que em celulares
+         a altura considere a barra de endereço dinâmica. 
+      */}
+      <div className={`h-[100dvh] w-full flex flex-col overflow-hidden max-w-lg mx-auto bg-slate-50/30`}>
         
         {/* Header */}
-        <header className="px-6 py-4 flex justify-between items-center z-50">
+        <header className="flex-none px-6 py-4 flex justify-between items-center z-50">
           {view !== 'welcome' && view !== 'mode_select' && (
             <button onClick={() => setView('landing')} className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-700 opacity-90 hover:opacity-100 transition drop-shadow-sm group">
-               {/* Small Lumi Symbol in Header */}
                <div className="transform scale-50 -ml-2">
                  <Lumi size="sm" mood="neutral" silenceMode={silenceMode} />
                </div>
@@ -243,8 +242,8 @@ const App: React.FC = () => {
           )}
         </header>
 
-        {/* Main Content Area */}
-        <main className="flex-1 flex flex-col relative max-w-lg mx-auto w-full p-4 overflow-hidden z-10">
+        {/* Main Content Area - FLEX-1 para ocupar todo espaço restante */}
+        <main className="flex-1 flex flex-col relative w-full px-4 overflow-hidden z-10 pb-2">
           
           {view === 'welcome' && renderWelcome()}
           
@@ -259,12 +258,12 @@ const App: React.FC = () => {
           {view === 'content' && (
             <>
                {activeTab === 'home' && currentMood && (
-                  <div className="py-2 flex justify-center mb-2 animate-fade-in">
+                  <div className="py-2 flex justify-center mb-1 animate-fade-in flex-none">
                      <Lumi mood={currentMood} silenceMode={silenceMode} size="sm" />
                   </div>
                )}
 
-               <div className="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden relative animate-slide-up">
+               <div className="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden relative animate-slide-up flex flex-col">
                  {renderContent()}
                </div>
             </>
@@ -273,7 +272,7 @@ const App: React.FC = () => {
 
         {/* Bottom Navigation */}
         {view === 'content' && (
-          <nav className="bg-white/90 backdrop-blur-lg border-t border-white/50 pb-safe pt-2 px-6 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-50">
+          <nav className="flex-none bg-white/90 backdrop-blur-lg border-t border-white/50 pb-safe pt-2 px-6 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-50">
             <div className="flex justify-between items-center max-w-lg mx-auto">
               {navigation.map((tab) => (
                 <button
@@ -292,6 +291,7 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
+            <div className="h-4 w-full"></div> {/* Spacer for iPhone Home Indicator */}
           </nav>
         )}
       </div>
