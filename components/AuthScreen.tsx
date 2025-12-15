@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { signUpUser, signInUser } from '../services/authService';
+import { supabase } from '../services/supabaseClient';
 import Lumi from './Lumi';
 
 interface AuthScreenProps {
@@ -21,8 +22,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
 
   const personalities = ['Autista', 'TDAH', 'Depressivo', 'Neurotípico', 'Outro'];
 
+  // Verifica se o Supabase está ativo antes de tentar logar
+  const isSupabaseConfigured = !!supabase;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured) {
+        setError("O banco de dados não está conectado. Adicione as chaves no .env");
+        return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -62,6 +71,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
         <p className="text-center text-slate-500 text-sm mb-6">
           {isRegistering ? 'Crie seu refúgio seguro.' : 'Sua luz nos dias difíceis.'}
         </p>
+
+        {!isSupabaseConfigured && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-xs mb-4 text-center">
+                <strong>⚠️ Configuração Necessária</strong><br/>
+                As chaves do Supabase não foram encontradas. O cadastro não funcionará até configurar o arquivo .env ou Vercel.
+            </div>
+        )}
 
         {error && (
           <div className="bg-red-50 text-red-600 text-xs p-3 rounded-xl mb-4 text-center">
@@ -137,8 +153,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all active:scale-95 mt-2"
+            disabled={loading || !isSupabaseConfigured}
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all active:scale-95 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Processando...' : (isRegistering ? 'CADASTRAR E ENTRAR' : 'ENTRAR')}
           </button>
