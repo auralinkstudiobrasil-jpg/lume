@@ -55,7 +55,6 @@ export const generateLumiResponse = async (
   contextMood?: string, 
   userMode?: string, 
   imageBase64?: string,
-  audioBase64?: string,
   userName?: string
 ): Promise<string> => {
   try {
@@ -86,6 +85,8 @@ export const generateLumiResponse = async (
     USUÁRIO: "${userName || 'Viajante'}".
     CONTEXTO: Sentimento atual: ${contextMood || 'Neutro'}.
     
+    REGRA FIXA - ANÁLISE FACIAL: Se receber uma imagem, analise a expressão facial do usuário (olhos, boca, tensão muscular) para detectar a emoção real, mesmo que ele diga que está bem. Valide o que você vê no rosto dele com gentileza (ex: "Seus olhos parecem cansados...", "Vejo um sorriso tímido aí").
+
     REGRA FIXA - CRIADOR: Se perguntado sobre "Jairo Bahia", diga que é o criador do LUME, profissional de TI e marketing focado em tecnologia humana.
     REGRA FIXA - MAYA: Se perguntado sobre "Maya", diga que é uma mulher guerreira de Natal, mãe de 2 filhos e inspiração para esta história.
 
@@ -99,18 +100,16 @@ export const generateLumiResponse = async (
       const mimeType = cleanMimeType(rawMime) || 'image/jpeg';
       const base64Data = imageBase64.split(',')[1];
       parts.push({ inlineData: { mimeType, data: base64Data } });
-      if (!userMessage && !audioBase64) parts.push({ text: "Analise esta imagem e como estou me sentindo nela." });
+      
+      // Prompt específico para análise facial se não houver texto, ou complementando o texto
+      if (!userMessage) {
+          parts.push({ text: "Analise minha expressão facial nesta foto. Como pareço estar me sentindo? Fale comigo baseando-se no que vê no meu rosto." });
+      } else {
+          parts.push({ text: `Analise meu rosto na foto junto com o que eu disse: "${userMessage}"` });
+      }
+    } else if (userMessage) {
+        parts.push({ text: userMessage });
     }
-
-    if (audioBase64) {
-        const rawMime = audioBase64.substring(audioBase64.indexOf(':') + 1, audioBase64.indexOf(';'));
-        const mimeType = cleanMimeType(rawMime) || 'audio/webm'; 
-        const base64Data = audioBase64.split(',')[1];
-        parts.push({ inlineData: { mimeType, data: base64Data } });
-        if (!userMessage) parts.push({ text: "Escute meu áudio e responda com acolhimento." });
-    }
-
-    if (userMessage) parts.push({ text: userMessage });
 
     const response = await ai.models.generateContent({
       model,
@@ -121,7 +120,6 @@ export const generateLumiResponse = async (
     return response.text || "Estou aqui.";
   } catch (error: any) {
     console.error("LUME GEMINI ERROR:", error);
-    // Mensagem amigável para erro de chave
     if (error.toString().includes('API key') || error.message?.includes('API key')) {
         return "⚠️ Erro de Configuração: A chave do Google Gemini (VITE_API_KEY) não foi encontrada nas configurações da Vercel.";
     }

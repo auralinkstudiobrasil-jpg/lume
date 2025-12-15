@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signUpUser, signInUser } from '../services/authService';
+import { signUpUser, signInUser, sendPasswordResetEmail } from '../services/authService';
 import { supabase } from '../services/supabaseClient';
 import Lumi from './Lumi';
 
@@ -9,9 +9,10 @@ interface AuthScreenProps {
 }
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [viewState, setViewState] = useState<'login' | 'register' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Form States
   const [email, setEmail] = useState('');
@@ -21,8 +22,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
   const [personality, setPersonality] = useState('Neurotípico');
 
   const personalities = ['Autista', 'TDAH', 'Depressivo', 'Neurotípico', 'Outro'];
-
-  // Verifica se o Supabase está ativo antes de tentar logar
   const isSupabaseConfigured = !!supabase;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,9 +33,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
 
     setLoading(true);
     setError('');
+    setSuccessMsg('');
 
     try {
-      if (isRegistering) {
+      if (viewState === 'register') {
         await signUpUser(email, password, {
           username,
           age,
@@ -44,14 +44,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
         });
         alert("Cadastro realizado! Bem-vindo à família.");
         onLoginSuccess();
-      } else {
+      } else if (viewState === 'login') {
         await signInUser(email, password);
         onLoginSuccess();
+      } else if (viewState === 'forgot') {
+        await sendPasswordResetEmail(email);
+        setSuccessMsg("Email de recuperação enviado! Verifique sua caixa de entrada.");
+        setLoading(false);
       }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Ocorreu um erro. Verifique seus dados.");
-    } finally {
       setLoading(false);
     }
   };
@@ -66,10 +69,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
         </div>
 
         <h2 className="text-2xl font-bold text-center text-slate-800 mt-6 mb-1">
-          {isRegistering ? 'Bem-vindo à Família' : 'LUME'}
+          {viewState === 'register' ? 'Bem-vindo à Família' : (viewState === 'forgot' ? 'Recuperar Senha' : 'LUME')}
         </h2>
         <p className="text-center text-slate-500 text-sm mb-6">
-          {isRegistering ? 'Crie seu refúgio seguro.' : 'Sua luz nos dias difíceis.'}
+          {viewState === 'register' ? 'Crie seu refúgio seguro.' : (viewState === 'forgot' ? 'Enviaremos um link para você.' : 'Sua luz nos dias difíceis.')}
         </p>
 
         {!isSupabaseConfigured && (
@@ -85,9 +88,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
           </div>
         )}
 
+        {successMsg && (
+          <div className="bg-green-50 text-green-600 text-xs p-3 rounded-xl mb-4 text-center">
+            {successMsg}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {isRegistering && (
+          {viewState === 'register' && (
             <>
               <div>
                 <label className="block text-xs font-bold text-slate-600 ml-1 mb-1">COMO QUER SER CHAMADO?</label>
@@ -139,41 +148,66 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onSkip }) => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-600 ml-1 mb-1">SENHA</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-indigo-400 outline-none text-slate-700 transition-all"
-              placeholder="••••••••"
-            />
-          </div>
+          {viewState !== 'forgot' && (
+             <div>
+                <label className="block text-xs font-bold text-slate-600 ml-1 mb-1">SENHA</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-indigo-400 outline-none text-slate-700 transition-all"
+                  placeholder="••••••••"
+                />
+             </div>
+          )}
 
           <button
             type="submit"
             disabled={loading || !isSupabaseConfigured}
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all active:scale-95 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Processando...' : (isRegistering ? 'CADASTRAR E ENTRAR' : 'ENTRAR')}
+            {loading ? 'Processando...' : (
+                viewState === 'register' ? 'CADASTRAR E ENTRAR' : 
+                viewState === 'forgot' ? 'ENVIAR EMAIL DE RECUPERAÇÃO' : 'ENTRAR'
+            )}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-           <p className="text-xs text-slate-400 mb-2">
-             {isRegistering ? 'Já tem conta?' : 'Ainda não é da família?'}
-           </p>
-           <button 
-             onClick={() => setIsRegistering(!isRegistering)}
-             className="text-indigo-600 font-bold text-sm hover:underline"
-           >
-             {isRegistering ? 'Fazer Login' : 'FAÇA PARTE DA FAMÍLIA!'}
-           </button>
+        <div className="mt-6 text-center space-y-3">
+           {viewState === 'login' && (
+               <>
+                 <button 
+                   onClick={() => setViewState('forgot')}
+                   className="text-slate-400 text-xs hover:text-indigo-500 transition-colors block w-full"
+                 >
+                   Esqueci minha senha
+                 </button>
+                 
+                 <div className="pt-2 border-t border-slate-100">
+                    <p className="text-xs text-slate-400 mb-2">Ainda não é da família?</p>
+                    <button 
+                        onClick={() => setViewState('register')}
+                        className="text-indigo-600 font-bold text-sm hover:underline"
+                    >
+                        FAÇA PARTE DA FAMÍLIA!
+                    </button>
+                 </div>
+               </>
+           )}
+
+           {(viewState === 'register' || viewState === 'forgot') && (
+               <button 
+                 onClick={() => setViewState('login')}
+                 className="text-indigo-600 font-bold text-sm hover:underline"
+               >
+                 Voltar para o Login
+               </button>
+           )}
         </div>
       </div>
       
-      {!isRegistering && (
+      {viewState === 'login' && (
           <button 
             onClick={onSkip}
             className="mt-8 text-slate-500 text-sm font-medium hover:text-slate-700 underline"

@@ -38,6 +38,17 @@ export const signOutUser = async () => {
     await supabase.auth.signOut();
 };
 
+export const sendPasswordResetEmail = async (email: string) => {
+    if (!supabase) throw new Error("Supabase não configurado.");
+    
+    // O URL de redirecionamento deve estar configurado no painel do Supabase
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin, 
+    });
+
+    if (error) throw error;
+};
+
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   if (!supabase) return null;
 
