@@ -1,8 +1,17 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
+// Tenta ler de diferentes formas para garantir compatibilidade (Vite vs Next vs Standard)
+const apiKey = process.env.API_KEY || 
+               process.env.NEXT_PUBLIC_API_KEY || 
+               (import.meta as any).env?.VITE_API_KEY || 
+               '';
 
-const getClient = () => new GoogleGenAI({ apiKey });
+const getClient = () => {
+    if (!apiKey) {
+        console.error("API Key do Gemini não encontrada. Verifique as variáveis de ambiente (API_KEY).");
+    }
+    return new GoogleGenAI({ apiKey });
+};
 
 // --- Helpers ---
 
@@ -154,7 +163,7 @@ export const generateLumiResponse = async (
   } catch (error: any) {
     console.error("LUME GEMINI ERROR:", error);
     if (error.message?.includes('API key')) {
-        return "Erro de configuração: Chave de API inválida ou ausente.";
+        return "Minha conexão com a IA falhou (Erro de Chave). Verifique a configuração na Vercel.";
     }
     return "Sinto muito, tive um erro técnico. Mas continuo aqui com você.";
   }

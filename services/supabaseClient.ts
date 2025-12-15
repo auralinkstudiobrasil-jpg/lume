@@ -1,11 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// No Vercel, defina estas variáveis de ambiente:
-// NEXT_PUBLIC_SUPABASE_URL
-// NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Tenta ler variáveis de ambiente de múltiplas formas para compatibilidade (Next.js vs Vite vs Standard)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 
 // Cria o cliente APENAS se as chaves existirem.
 // Se não existirem (ex: esqueceu de configurar no Vercel), retorna null
