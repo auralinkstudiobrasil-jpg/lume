@@ -3,10 +3,15 @@ import { CommunityMessage } from '../types';
 import { sanitizeText, registerViolation, checkBanStatus } from '../services/moderationService';
 import { generateCommunitySupport } from '../services/geminiService';
 import { getCommunityMessages, postToCommunity, subscribeToMessages } from '../services/communityService';
-import Lumi from './Lumi';
 import { supabase } from '../services/supabaseClient';
+import Lumi from './Lumi';
 
-const CommunityChat: React.FC = () => {
+interface CommunityChatProps {
+    isGuest: boolean;
+    onRegisterRequest: () => void;
+}
+
+const CommunityChat: React.FC<CommunityChatProps> = ({ isGuest, onRegisterRequest }) => {
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isBanned, setIsBanned] = useState(false);
@@ -14,6 +19,27 @@ const CommunityChat: React.FC = () => {
   const [warning, setWarning] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Se for convidado, não carrega nada e mostra tela de bloqueio
+  if (isGuest) {
+      return (
+          <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50/50">
+              <div className="mb-6 scale-110">
+                  <Lumi mood="neutral" size="md" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-700 mb-3">Área Exclusiva da Família</h2>
+              <p className="text-slate-500 mb-8 max-w-xs">
+                  Para participar da comunidade, compartilhar histórias e fazer amigos, você precisa fazer parte da família LUME.
+              </p>
+              <button 
+                onClick={onRegisterRequest}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              >
+                  FAÇA PARTE DA FAMÍLIA!
+              </button>
+          </div>
+      )
+  }
 
   useEffect(() => {
     const loadMessages = async () => {
@@ -71,35 +97,28 @@ const CommunityChat: React.FC = () => {
        return; 
     }
 
+    // Criar mensagem temporária
+    const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+    
+    // Tentativa de pegar nome do perfil ou usar fallback
+    let authorName = 'Membro da Família';
+    if (user) {
+        // Num cenário ideal, pegamos do perfil carregado no App.tsx e passamos via props
+        // Aqui vamos simplificar
+        authorName = user.user_metadata?.username || 'Membro';
+    }
+
     const newMessage: CommunityMessage = {
       id: 'temp-' + Date.now(),
-      author: 'Você',
+      author: authorName,
       avatar: '👤',
       text: sanitized,
       timestamp: Date.now()
     };
     
-    if (!supabase) {
-        setMessages(prev => [...prev, newMessage]);
-    }
-
+    // Posta
     await postToCommunity(newMessage);
     setInputText('');
-
-    if (!supabase) {
-        setTimeout(async () => {
-            const supportText = await generateCommunitySupport(sanitized);
-            const reply: CommunityMessage = {
-                id: (Date.now() + 1).toString(),
-                author: 'Anônimo (Simulado)',
-                avatar: '🤖',
-                text: supportText,
-                timestamp: Date.now()
-            };
-            setMessages(prev => [...prev, reply]);
-            await postToCommunity(reply);
-        }, 2000);
-    }
   };
 
   if (isBanned) {
@@ -119,7 +138,7 @@ const CommunityChat: React.FC = () => {
     <div className="flex flex-col h-full w-full">
       <div className="bg-indigo-50 border-b border-indigo-100 p-3 text-center flex-none">
          <p className="text-xs text-indigo-800 font-medium flex items-center justify-center gap-2">
-           <span>{supabase ? '🟢' : '🟠'}</span> {supabase ? 'Comunidade Online' : 'Modo Offline (Local)'}
+           <span>🟢</span> Comunidade Oficial LUME
          </p>
       </div>
 
@@ -133,32 +152,19 @@ const CommunityChat: React.FC = () => {
             </div>
         )}
 
-        {!isLoading && messages.length === 0 && (
-            <div className="text-center text-slate-400 mt-10">
-                <p>O chat está silencioso...</p>
-                <p className="text-xs">Seja a primeira faísca.</p>
-            </div>
-        )}
-
         {messages.map((msg) => (
           <div 
             key={msg.id} 
-            className={`flex gap-3 ${msg.author === 'Você' ? 'flex-row-reverse' : 'flex-row'}`}
+            className={`flex gap-3 ${msg.author === 'Você' || (supabase && msg.user_id === supabase.auth.getUser()['id']) ? 'flex-row-reverse' : 'flex-row'}`}
           >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm flex-shrink-0 ${msg.isModerator ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200'}`}>
               {msg.avatar}
             </div>
             
-            <div className={`max-w-[80%] flex flex-col ${msg.author === 'Você' ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[80%] flex flex-col items-start`}>
                <span className="text-[10px] text-slate-400 mb-1 px-1">{msg.author}</span>
                <div 
-                  className={`p-3 rounded-2xl text-sm shadow-sm overflow-hidden break-words ${
-                    msg.isModerator 
-                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200' 
-                      : msg.author === 'Você'
-                        ? 'bg-white border-2 border-indigo-100 text-slate-700'
-                        : 'bg-white border border-slate-100 text-slate-600'
-                  }`}
+                  className={`p-3 rounded-2xl text-sm shadow-sm overflow-hidden break-words bg-white border border-slate-100 text-slate-600`}
                >
                  {msg.image && (
                     <img src={msg.image} alt="User art" className="w-full h-auto rounded-lg mb-2 max-h-48 object-cover border border-slate-100" />
@@ -189,7 +195,7 @@ const CommunityChat: React.FC = () => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={supabase ? "Escreva para o mundo..." : "Escreva (local)..."}
+            placeholder="Compartilhe com a família..."
             className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-300 outline-none text-slate-700 text-sm"
           />
           <button

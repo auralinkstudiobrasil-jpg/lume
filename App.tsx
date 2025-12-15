@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MoodType, Tab, AppView, UserMode } from './types';
+import React, { useState, useEffect } from 'react';
+import { MoodType, Tab, AppView, UserMode, UserProfile } from './types';
 import Lumi from './components/Lumi';
 import EmotionalCheckIn from './components/EmotionalCheckIn';
 import Acolhimento from './components/BreathingExercise'; 
@@ -8,19 +8,71 @@ import Diary from './components/Diary';
 import ChatInterface from './components/ChatInterface';
 import CommunityChat from './components/CommunityChat';
 import VideoBackground from './components/VideoBackground';
+import AuthScreen from './components/AuthScreen';
+import UserProfileScreen from './components/UserProfile';
+import { getUserProfile, signOutUser } from './services/authService';
+import { supabase } from './services/supabaseClient';
 
 const App: React.FC = () => {
+  // Global State
   const [currentMood, setCurrentMood] = useState<MoodType | null>(null);
   const [activeTab, setActiveTab] = useState<Tab['id']>('home');
-  const [view, setView] = useState<AppView>('welcome');
+  const [view, setView] = useState<AppView>('auth'); // Start at Auth
   const [silenceMode, setSilenceMode] = useState(false);
-  const [userName, setUserName] = useState('');
   const [userMode, setUserMode] = useState<UserMode>('base');
+  
+  // Auth State
+  const [isGuest, setIsGuest] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [guestName, setGuestName] = useState('');
 
-  const handleNameSubmit = () => {
-    if (userName.trim()) {
+  // Check Auth on Mount
+  useEffect(() => {
+     if(supabase) {
+         supabase.auth.getUser().then(async ({data}) => {
+             if(data.user) {
+                 const profile = await getUserProfile(data.user.id);
+                 if(profile) {
+                     setUserProfile(profile);
+                     setIsGuest(false);
+                     setView('landing');
+                 }
+             }
+         });
+     }
+  }, []);
+
+  // --- Handlers ---
+
+  const handleLoginSuccess = async () => {
+      // Fetch profile
+      if (supabase) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+              const profile = await getUserProfile(user.id);
+              setUserProfile(profile);
+              setIsGuest(false);
+              setView('landing');
+          }
+      }
+  };
+
+  const handleGuestEntry = () => {
+      setIsGuest(true);
+      setGuestName('Visitante');
+      setView('welcome'); // Ask name for local session
+  };
+
+  const handleLogout = async () => {
+      await signOutUser();
+      setIsGuest(true);
+      setUserProfile(null);
+      setView('auth');
+  };
+
+  const handleGuestNameSubmit = (name: string) => {
+      setGuestName(name);
       setView('mode_select');
-    }
   };
 
   const handleModeSelect = (mode: UserMode) => {
@@ -31,47 +83,9 @@ const App: React.FC = () => {
     setView('landing');
   };
 
-  const goToCheckIn = () => {
-    setView('checkin');
-  };
-
-  const handleMoodSelect = (mood: MoodType) => {
-    setCurrentMood(mood);
-    setView('content');
-    setActiveTab('home');
-  };
-
-  const quickActionChat = () => {
-    setCurrentMood('neutral'); 
-    setView('content');
-    setActiveTab('chat');
-  };
-
-  const quickActionCommunity = () => {
-    setCurrentMood('neutral'); 
-    setView('content');
-    setActiveTab('community');
-  };
-
-  const quickActionCalm = () => {
-    setCurrentMood('neutral');
-    setView('content');
-    setActiveTab('acolhimento');
-  };
-
-  const quickActionRoutine = () => {
-    setCurrentMood('neutral');
-    setView('content');
-    setActiveTab('home');
-  };
-
-  const quickActionSilence = () => {
-    setSilenceMode(!silenceMode);
-  };
-
   // --- Renderers ---
 
-  const renderWelcome = () => (
+  const renderWelcomeGuest = () => (
     <div className="flex flex-col items-center justify-center h-full animate-fade-in p-8">
       <div className="mb-10 scale-125">
         <Lumi mood="neutral" silenceMode={false} size="lg" />
@@ -81,28 +95,24 @@ const App: React.FC = () => {
         Olá.
       </h1>
       <p className="text-slate-500 mb-8 text-center text-lg">
-        Como você gosta de ser chamado?
+        Como posso te chamar hoje?
       </p>
       
-      <div className="w-full max-w-xs flex flex-col gap-4">
-        <input 
-          type="text" 
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
-          placeholder="Seu nome"
-          className="w-full text-center px-4 py-4 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-indigo-100 focus:border-indigo-300 focus:outline-none text-slate-700 text-lg shadow-sm placeholder:text-slate-300 transition-colors"
-          autoFocus
-        />
-        
-        <button 
-          onClick={handleNameSubmit}
-          disabled={!userName.trim()}
-          className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl shadow-md transition-all active:scale-95"
-        >
-          Continuar
-        </button>
-      </div>
+      <input 
+        type="text" 
+        onChange={(e) => setGuestName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && handleGuestNameSubmit(guestName)}
+        placeholder="Seu nome"
+        className="w-full max-w-xs text-center px-4 py-4 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-indigo-100 focus:border-indigo-300 focus:outline-none text-slate-700 text-lg shadow-sm mb-4"
+        autoFocus
+      />
+      
+      <button 
+        onClick={() => handleGuestNameSubmit(guestName || 'Visitante')}
+        className="w-full max-w-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-md transition-all active:scale-95"
+      >
+        Continuar
+      </button>
     </div>
   );
 
@@ -112,7 +122,7 @@ const App: React.FC = () => {
         O que você busca hoje?
       </h1>
       <p className="text-slate-500 mb-8 text-center">
-        O app se adapta a você. Sem rótulos.
+        O app se adapta a você.
       </p>
 
       <div className="space-y-4 max-w-sm mx-auto w-full pb-8">
@@ -145,41 +155,58 @@ const App: React.FC = () => {
 
   const renderLanding = () => (
     <div className="flex flex-col items-center justify-center h-full animate-fade-in p-6 overflow-y-auto scrollbar-hide">
-      <div className="mb-6 scale-110">
+      
+      {/* User Header if Logged In */}
+      {!isGuest && userProfile && (
+           <div className="absolute top-16 right-6 flex items-center gap-3 bg-white/40 p-2 pr-4 rounded-full backdrop-blur-md border border-white/50 shadow-sm cursor-pointer" onClick={() => { setView('content'); setActiveTab('profile'); }}>
+               <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-slate-200">
+                   {userProfile.avatar_url ? <img src={userProfile.avatar_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full">👤</span>}
+               </div>
+               <span className="text-sm font-bold text-slate-700">{userProfile.username}</span>
+           </div>
+      )}
+
+      <div className="mb-6 scale-110 mt-10">
         <Lumi mood="neutral" silenceMode={silenceMode} size="lg" />
       </div>
       <h1 className="text-2xl font-semibold text-slate-700 mb-2 text-center opacity-90 max-w-xs leading-relaxed drop-shadow-sm">
-        {userName ? `Oi, ${userName}.` : 'Oi.'}
+        {isGuest ? `Oi, ${guestName || 'Viajante'}.` : `Oi, ${userProfile?.username || 'Amigo'}.`}
       </h1>
       <p className="text-slate-500 mb-8 text-center text-lg">
-        Eu tô aqui com você.
+        {isGuest ? 'Modo Livre Ativado.' : 'Bom te ver em casa.'}
       </p>
       
       <div className="grid grid-cols-1 w-full max-w-xs gap-4 pb-10">
-        <button onClick={quickActionChat} className="bg-indigo-500 hover:bg-indigo-600 text-white p-5 rounded-2xl text-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3">
+        <button onClick={() => { setCurrentMood('neutral'); setView('content'); setActiveTab('chat'); }} className="bg-indigo-500 hover:bg-indigo-600 text-white p-5 rounded-2xl text-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3">
           <span className="text-2xl">💬</span> Conversar com Lumi
         </button>
         
-        <button onClick={quickActionCommunity} className="bg-white/90 border-2 border-emerald-100 hover:border-emerald-300 text-slate-700 p-4 rounded-2xl text-lg font-medium shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-3">
-          <span className="text-2xl">🌿</span> Comunidade
+        <button onClick={() => { setView('content'); setActiveTab('community'); }} className="bg-white/90 border-2 border-emerald-100 hover:border-emerald-300 text-slate-700 p-4 rounded-2xl text-lg font-medium shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-3">
+          <span className="text-2xl">🌿</span> Comunidade {isGuest && '(Bloqueado)'}
         </button>
 
-        <button onClick={goToCheckIn} className="bg-white/80 backdrop-blur-md border-2 border-indigo-100 hover:border-indigo-300 p-4 rounded-2xl text-lg font-medium text-slate-700 transition-all shadow-sm active:scale-95">
+        <button onClick={() => setView('checkin')} className="bg-white/80 backdrop-blur-md border-2 border-indigo-100 hover:border-indigo-300 p-4 rounded-2xl text-lg font-medium text-slate-700 transition-all shadow-sm active:scale-95">
           Como você tá agora?
         </button>
         
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <button onClick={quickActionCalm} className="bg-blue-100/80 hover:bg-blue-200/90 p-4 rounded-2xl text-blue-900 font-medium transition-colors active:scale-95 text-center">
+          <button onClick={() => { setView('content'); setActiveTab('acolhimento'); }} className="bg-blue-100/80 hover:bg-blue-200/90 p-4 rounded-2xl text-blue-900 font-medium transition-colors active:scale-95 text-center">
             Calma
           </button>
-          <button onClick={quickActionRoutine} className="bg-amber-100/80 hover:bg-amber-200/90 p-4 rounded-2xl text-amber-900 font-medium transition-colors active:scale-95 text-center">
+          <button onClick={() => { setView('content'); setActiveTab('home'); }} className="bg-amber-100/80 hover:bg-amber-200/90 p-4 rounded-2xl text-amber-900 font-medium transition-colors active:scale-95 text-center">
             Rotina
           </button>
         </div>
         
-        <button onClick={quickActionSilence} className={`flex items-center justify-center gap-2 p-4 rounded-2xl font-medium transition-colors active:scale-95 mt-2 ${silenceMode ? 'bg-slate-800 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+        <button onClick={() => setSilenceMode(!silenceMode)} className={`flex items-center justify-center gap-2 p-4 rounded-2xl font-medium transition-colors active:scale-95 mt-2 ${silenceMode ? 'bg-slate-800 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
           <span>{silenceMode ? '🔕' : '🔔'}</span> {silenceMode ? 'Modo Silencioso Ativo' : 'Ativar Silêncio'}
         </button>
+
+        {isGuest && (
+            <button onClick={() => setView('auth')} className="mt-4 text-indigo-600 font-bold text-sm underline">
+                Faça parte da família! (Cadastro)
+            </button>
+        )}
       </div>
     </div>
   );
@@ -191,11 +218,13 @@ const App: React.FC = () => {
       case 'acolhimento':
         return <Acolhimento silenceMode={silenceMode} userMode={userMode} />;
       case 'diary':
-        return <Diary userName={userName} />;
+        return <Diary userName={isGuest ? guestName : userProfile?.username} />;
       case 'chat':
-        return <ChatInterface silenceMode={silenceMode} contextMood={currentMood || undefined} userName={userName} />; 
+        return <ChatInterface silenceMode={silenceMode} contextMood={currentMood || undefined} userName={isGuest ? guestName : userProfile?.username} />; 
       case 'community':
-        return <CommunityChat />;
+        return <CommunityChat isGuest={isGuest} onRegisterRequest={() => setView('auth')} />;
+      case 'profile':
+        return userProfile ? <UserProfileScreen profile={userProfile} isOwnProfile={true} onLogout={handleLogout} /> : <div>Erro ao carregar perfil</div>;
       default:
         return <MicroRoutines mode={userMode} />;
     }
@@ -205,16 +234,25 @@ const App: React.FC = () => {
     { id: 'home', label: 'Início', icon: '✨' },
     { id: 'acolhimento', label: 'Acolher', icon: '🌬️' },
     { id: 'chat', label: 'Lumi', icon: '💬' },
-    { id: 'community', label: 'Comunidade', icon: '🌿' },
-    { id: 'diary', label: 'Diário', icon: '📓' },
+    { id: 'community', label: 'Família', icon: '🌿' },
+    // Show Profile Icon if Logged In, otherwise Diary
+    isGuest 
+      ? { id: 'diary', label: 'Diário', icon: '📓' }
+      : { id: 'profile', label: 'Perfil', icon: '👤' }
   ];
+
+  if (view === 'auth') {
+      return (
+        <VideoBackground mode="base">
+           <div className="h-[100dvh] w-full max-w-lg mx-auto bg-slate-50/30">
+               <AuthScreen onLoginSuccess={handleLoginSuccess} onSkip={handleGuestEntry} />
+           </div>
+        </VideoBackground>
+      );
+  }
 
   return (
     <VideoBackground mode={userMode}>
-      {/* 
-         MUDANÇA PRINCIPAL: Usar h-[100dvh] para garantir que em celulares
-         a altura considere a barra de endereço dinâmica. 
-      */}
       <div className={`h-[100dvh] w-full flex flex-col overflow-hidden max-w-lg mx-auto bg-slate-50/30`}>
         
         {/* Header */}
@@ -242,17 +280,17 @@ const App: React.FC = () => {
           )}
         </header>
 
-        {/* Main Content Area - FLEX-1 para ocupar todo espaço restante */}
+        {/* Main Content Area */}
         <main className="flex-1 flex flex-col relative w-full px-4 overflow-hidden z-10 pb-2">
           
-          {view === 'welcome' && renderWelcome()}
+          {view === 'welcome' && renderWelcomeGuest()}
           
           {view === 'mode_select' && renderModeSelect()}
 
           {view === 'landing' && renderLanding()}
           
           {view === 'checkin' && (
-             <EmotionalCheckIn onSelect={handleMoodSelect} />
+             <EmotionalCheckIn onSelect={(mood) => { setCurrentMood(mood); setView('content'); setActiveTab('home'); }} />
           )}
 
           {view === 'content' && (
@@ -291,7 +329,7 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
-            <div className="h-4 w-full"></div> {/* Spacer for iPhone Home Indicator */}
+            <div className="h-4 w-full"></div>
           </nav>
         )}
       </div>

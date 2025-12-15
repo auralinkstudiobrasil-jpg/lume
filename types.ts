@@ -34,12 +34,12 @@ export interface CommunityMessage {
 }
 
 export interface Tab {
-  id: 'home' | 'acolhimento' | 'community' | 'chat' | 'diary';
+  id: 'home' | 'acolhimento' | 'community' | 'chat' | 'diary' | 'profile';
   label: string;
   icon: React.ReactNode;
 }
 
-export type AppView = 'welcome' | 'mode_select' | 'landing' | 'checkin' | 'content';
+export type AppView = 'welcome' | 'auth' | 'mode_select' | 'landing' | 'checkin' | 'content';
 export type AcolhimentoMode = 'breathe' | 'light' | 'sound' | 'grounding' | 'anxiety' | 'trauma';
 
 // --- Diary Types ---
@@ -65,10 +65,15 @@ export interface ShapeItem {
   color: string;
 }
 
-// --- Supabase Database Definitions (Optional for strict typing) ---
-export interface DatabaseProfile {
+// --- Social Profile Types ---
+export interface UserProfile {
   id: string;
-  display_name: string;
-  user_mode: UserMode;
-  avatar_emoji: string;
+  username: string;
+  age: string;
+  personality: 'Autista' | 'TDAH' | 'Depressivo' | 'Neurotípico' | 'Outro';
+  avatar_url?: string;
+  cover_url?: string;
+  bio?: string;
+  playlist?: string[]; // Links or embedded content
+  gallery?: string[]; // Images
 }
