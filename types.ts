@@ -1,3 +1,4 @@
+import React from 'react';
 
 export type MoodType = 'sunny' | 'cloudy' | 'rainy' | 'stormy' | 'neutral' | 'happy';
 
