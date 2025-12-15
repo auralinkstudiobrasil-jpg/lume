@@ -4,8 +4,9 @@ import Lumi from './components/Lumi';
 import EmotionalCheckIn from './components/EmotionalCheckIn';
 import Acolhimento from './components/BreathingExercise'; 
 import MicroRoutines from './components/MicroRoutines';
-import NonVerbalDiary from './components/NonVerbalDiary';
+import Diary from './components/Diary';
 import ChatInterface from './components/ChatInterface';
+import CommunityChat from './components/CommunityChat';
 import VideoBackground from './components/VideoBackground';
 
 const App: React.FC = () => {
@@ -43,9 +44,15 @@ const App: React.FC = () => {
   };
 
   const quickActionChat = () => {
-    setCurrentMood('neutral'); // Default context
+    setCurrentMood('neutral'); 
     setView('content');
     setActiveTab('chat');
+  };
+
+  const quickActionCommunity = () => {
+    setCurrentMood('neutral'); 
+    setView('content');
+    setActiveTab('community');
   };
 
   const quickActionCalm = () => {
@@ -153,7 +160,12 @@ const App: React.FC = () => {
       <div className="grid grid-cols-1 w-full max-w-xs gap-4">
         {/* Highlighted Chat Button */}
         <button onClick={quickActionChat} className="bg-indigo-500 hover:bg-indigo-600 text-white p-5 rounded-2xl text-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3">
-          <span className="text-2xl">💬</span> Conversar agora
+          <span className="text-2xl">💬</span> Conversar com Lumi
+        </button>
+        
+        {/* Community Button */}
+        <button onClick={quickActionCommunity} className="bg-white/90 border-2 border-emerald-100 hover:border-emerald-300 text-slate-700 p-4 rounded-2xl text-lg font-medium shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center justify-center gap-3">
+          <span className="text-2xl">🌿</span> Comunidade
         </button>
 
         <button onClick={goToCheckIn} className="bg-white/80 backdrop-blur-md border-2 border-indigo-100 hover:border-indigo-300 p-4 rounded-2xl text-lg font-medium text-slate-700 transition-all shadow-sm active:scale-95">
@@ -183,9 +195,11 @@ const App: React.FC = () => {
       case 'acolhimento':
         return <Acolhimento silenceMode={silenceMode} userMode={userMode} />;
       case 'diary':
-        return <NonVerbalDiary />;
+        return <Diary userName={userName} />;
       case 'chat':
-        return <ChatInterface silenceMode={silenceMode} contextMood={currentMood || undefined} />; 
+        return <ChatInterface silenceMode={silenceMode} contextMood={currentMood || undefined} userName={userName} />; 
+      case 'community':
+        return <CommunityChat />;
       default:
         return <MicroRoutines mode={userMode} />;
     }
@@ -195,7 +209,8 @@ const App: React.FC = () => {
     { id: 'home', label: 'Início', icon: '✨' },
     { id: 'acolhimento', label: 'Acolher', icon: '🌬️' },
     { id: 'chat', label: 'Lumi', icon: '💬' },
-    { id: 'diary', label: 'Diário', icon: '🎨' },
+    { id: 'community', label: 'Comunidade', icon: '🌿' },
+    { id: 'diary', label: 'Diário', icon: '📓' },
   ];
 
   return (

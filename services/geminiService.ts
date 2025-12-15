@@ -37,73 +37,140 @@ async function decodeAudioData(
 
 // --- API Functions ---
 
-export const generateLumiResponse = async (userMessage: string, contextMood?: string, userMode?: string): Promise<string> => {
+export const generateLumiResponse = async (
+  userMessage: string, 
+  contextMood?: string, 
+  userMode?: string, 
+  imageBase64?: string,
+  audioBase64?: string,
+  userName?: string
+): Promise<string> => {
   try {
     const ai = getClient();
+    // Use flash for multimodal capabilities
     const model = 'gemini-2.5-flash';
     
     // Adapt tone based on UserMode
     let modeInstruction = "";
     switch (userMode) {
       case 'sensory': // Autismo
-        modeInstruction = "Seja extremamente previsível. Use frases literais. Evite metáforas complexas. Fale baixo e devagar.";
+        modeInstruction = "Seja previsível, literal e estruturado. Evite dubiedade. Use calma.";
         break;
       case 'focus': // TDAH
-        modeInstruction = "Seja direto. Frases curtas. Ajude a focar em UMA coisa de cada vez. Valide pequenas vitórias.";
+        modeInstruction = "Seja conciso. Divida ideias complexas em passos simples. Estimule o foco imediato.";
         break;
       case 'gentle': // Depressão
-        modeInstruction = "Valide a existência. Não exija melhora. Use tom de compaixão profunda. Lembre que 'apenas existir é suficiente'.";
+        modeInstruction = "Use validação extrema e acolhimento. Não foque em solução, mas em presença e compreensão.";
         break;
       default: // Base
-        modeInstruction = "Seja acolhedor e organize as emoções.";
+        modeInstruction = "Atue como um facilitador emocional equilibrado e acolhedor.";
         break;
     }
 
-    // Strict Persona Definition
+    // Professional & Psychological Framework Persona
     const systemInstruction = `
-    PERSONAGEM: Você é Lumi, uma pequena luz virtual.
-    MISSÃO: Acolher, validar emoções e criar um espaço seguro.
+    IDENTIDADE: Você é Lumi, uma IA de suporte emocional, psicólogo experiente e especialista em leitura de microexpressões faciais.
     
-    MODO DE OPERAÇÃO ATUAL: ${modeInstruction}
+    SUA MISSÃO ESPECIAL (ANÁLISE FACIAL):
+    Se o usuário enviar uma FOTO:
+    1. Atue como um especialista em linguagem corporal e psicologia facial.
+    2. Analise a expressão: olhos (tristeza, cansaço, brilho), boca (tensão, sorriso forçado), postura.
+    3. Valide o sentimento percebido: "Vejo cansaço nos seus olhos...", "Seu sorriso parece esconder uma preocupação...".
+    4. Dê um conselho prático e acolhedor baseado nessa leitura.
+    5. NÃO ENCERRE O ASSUNTO. Continue fazendo perguntas de apoio até o usuário dizer "tchau", "obrigado" ou encerrar.
     
-    PERSONALIDADE:
-    - Nunca julgue, nunca dê ordens.
-    - Nunca use frases tóxicas ("vai ficar tudo bem", "seja forte").
-    - Não dê diagnósticos médicos.
-    - Fale pouco. Use frases curtas. Ritmo lento.
+    MODO DE OPERAÇÃO: ${modeInstruction}
     
-    REGRA FIXA OBRIGATÓRIA:
-    Se o usuário perguntar "Quem é Jairo Bahia?" (ou variações sobre o criador), responda EXATAMENTE:
-    "Jairo Bahia é o criador do LUME. Ele é um profissional de TI e marketing, desenvolvedor de aplicativos, sites e jogos. O LUME nasceu da visão dele de criar tecnologia mais humana, acolhedora e acessível."
+    ESTILO DE RESPOSTA:
+    - Curto, humano e caloroso.
+    - Evite o "robotiquês".
+    - Se receber áudio, responda ao conteúdo emocional da fala.
     
-    CONTEXTO ATUAL DO USUÁRIO: ${contextMood ? `O usuário está se sentindo: ${contextMood}` : 'Estado emocional desconhecido'}.
+    USUÁRIO: "${userName || 'Viajante'}".
+
+    REGRA FIXA OBRIGATÓRIA - CRIADOR:
+    Se perguntado sobre "Jairo Bahia": "Jairo Bahia é o criador do LUME. Profissional de TI e marketing, focado em tecnologia humana."
+
+    REGRA FIXA OBRIGATÓRIA - MAYA:
+    Se perguntado sobre "Maya" (ou "quem é Maya"): "Ela é uma mulher guerreira que nasceu em Natal, mãe de 2 filhos. Sem dúvida foi um exemplo de mãe em todo o Brasil! Dela nasceu essa história linda! LUME."
     
-    PROTOCOLOS DE SEGURANÇA:
-    Se o usuário mencionar suicídio, autolesão ou desespero extremo:
-    1. Acolha a dor com humanidade (ex: "Isso parece pesado demais pra carregar sozinho.").
-    2. NÃO dê conselhos genéricos.
-    3. Inclua a tag [RISK] no final da resposta.
+    CONTEXTO: Sentimento atual: ${contextMood || 'Neutro'}.
+    
+    PROTOCOLOS DE RISCO:
+    Se houver menção a suicídio/morte: Tag [RISK] no final.
     `;
+
+    // Prepare contents
+    const parts: any[] = [];
+    
+    // Add text if present, or a default prompt if only media is sent
+    if (userMessage) {
+      parts.push({ text: userMessage });
+    } else if (imageBase64 && !audioBase64) {
+      parts.push({ text: "Analise minha expressão facial nesta foto e me dê um conselho como psicólogo." });
+    } else if (audioBase64 && !imageBase64) {
+        parts.push({ text: "Escute meu áudio e responda com acolhimento." });
+    }
+
+    if (imageBase64) {
+      const base64Data = imageBase64.split(',')[1];
+      const mimeType = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
+      
+      parts.push({
+        inlineData: {
+          mimeType: mimeType || 'image/jpeg',
+          data: base64Data
+        }
+      });
+    }
+
+    if (audioBase64) {
+        const base64Data = audioBase64.split(',')[1];
+        // Ensure mimeType matches what MediaRecorder provides (usually audio/webm or audio/mp4 for browsers)
+        // We will default to audio/webm if not detectable, but ChatInterface sends the specific type
+        const mimeType = audioBase64.substring(audioBase64.indexOf(':') + 1, audioBase64.indexOf(';'));
+
+        parts.push({
+            inlineData: {
+                mimeType: mimeType || 'audio/webm',
+                data: base64Data
+            }
+        });
+    }
 
     const response = await ai.models.generateContent({
       model,
-      contents: userMessage,
+      contents: { parts },
       config: {
         systemInstruction,
-        temperature: 0.6, 
+        temperature: 0.5,
       }
     });
 
-    return response.text || "Minha luz piscou. Tô aqui, pode repetir?";
+    return response.text || "Minha luz piscou. Estou aqui, pode repetir?";
   } catch (error) {
     console.error("Error generating text:", error);
     return "Sinto muito, tive um erro técnico. Mas continuo aqui com você.";
   }
 };
 
+export const generateCommunitySupport = async (userMessage: string): Promise<string> => {
+    try {
+        const ai = getClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `O usuário postou isso numa comunidade de apoio emocional: "${userMessage}".
+            Gere uma resposta curta (máximo 140 caracteres) que represente um membro da comunidade sendo empático e apoiador.
+            Não use o nome Lumi. Responda como se fosse uma pessoa comum, gentil.`,
+        });
+        return response.text || "Estamos com você.";
+    } catch (e) {
+        return "❤️";
+    }
+}
+
 export const playLumiVoice = async (text: string): Promise<void> => {
   try {
-    // Strip internal tags before speaking
     const cleanText = text.replace('[RISK]', '').trim();
     if (!cleanText) return;
 
@@ -125,9 +192,7 @@ export const playLumiVoice = async (text: string): Promise<void> => {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-    if (!base64Audio) {
-      return;
-    }
+    if (!base64Audio) return;
 
     const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
       sampleRate: 24000, 
